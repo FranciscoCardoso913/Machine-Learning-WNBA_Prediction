@@ -43,5 +43,6 @@ teams_post = clear_teams_post(pd.read_csv('data/teams_post.csv'))
 teams = clear_teams(pd.read_csv('data/teams.csv'))
 
 merged_teams = pd.merge(teams, teams_post, on=["tmID", 'year'])
-
-print(merged_teams.head(5))
+merged_teams = pd.merge(merged_teams, coaches, on=["tmID", 'year'])
+merged_teams = pd.merge(merged_teams, series_post, on=["tmID", 'year'])
+print(merged_teams)
