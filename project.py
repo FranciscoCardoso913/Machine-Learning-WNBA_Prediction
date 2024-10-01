@@ -4,9 +4,27 @@ from unittest.mock import inplace
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import accuracy_score
+from sklearn.compose import ColumnTransformer
+from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier, RandomForestClassifier
+from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score
+from sklearn.model_selection import StratifiedKFold, GridSearchCV, cross_val_predict, cross_validate, train_test_split
+from sklearn.naive_bayes import GaussianNB
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neural_network import MLPClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.linear_model import LogisticRegression
+from xgboost import XGBClassifier
+from lightgbm import LGBMClassifier
 
 # teams_merged = pd.merge(teams_data, teams_post_data, on=['tmID', 'year'], how='left')
 
@@ -80,24 +98,41 @@ y_train = train_data[target]
 X_test = test_data[features]
 y_test = test_data[target]
 
-# Train a RandomForestClassifier
-model = RandomForestClassifier(random_state=42)
-model.fit(X_train, y_train)
+models = []
+models.append(('LR', LogisticRegression(max_iter=1000)))
+models.append(('SVC', SVC()))
+models.append(('DTC', DecisionTreeClassifier()))
+models.append(('KNN', KNeighborsClassifier()))
+models.append(('GNB', GaussianNB()))
+models.append(('MLP', MLPClassifier(max_iter=600)))
+models.append(('RFC', RandomForestClassifier()))
+models.append(('ABC', AdaBoostClassifier(algorithm='SAMME')))
+models.append(('GBC', GradientBoostingClassifier()))
 
-# Predict on the test data
-y_pred = model.predict(X_test)
+# Train and evaluate each model
+results = {}
+for name, model in models:
+    # Train the model
+    model.fit(X_train, y_train)
 
-# Evaluate the accuracy
-accuracy = accuracy_score(y_test, y_pred)
-print(f'Accuracy: {accuracy * 100:.2f}%')
+    # Predict on the test data
+    y_pred = model.predict(X_test)
 
-# Make predictions for the next season
-# Assuming you want to predict for all teams in the most recent season
+    # Evaluate the accuracy
+    accuracy = accuracy_score(y_test, y_pred)
+
+    # Store the result
+    results[name] = accuracy
+    print(f'{name} Accuracy: {accuracy * 100:.2f}%')
+
+# Make predictions for the next season using the best model
+# For simplicity, let’s assume you want to predict with the last model in the list
+best_model = models[-1][1]  # Example: MLPClassifier
 next_season = test_data[test_data.year == 9]  # Replace '6' with the next season
 X_next_season = next_season[features]
 
-next_season_predictions = model.predict(X_next_season)
+next_season_predictions = best_model.predict(X_next_season)
 next_season['predicted_playoff'] = next_season_predictions
 
-# Output predictions
+# Output predictions for the next season
 print(next_season[['franchID', 'year', 'predicted_playoff']])
