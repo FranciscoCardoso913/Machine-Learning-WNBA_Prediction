@@ -1,4 +1,4 @@
-from mailcap import subst
+import mimetypes
 from pyexpat import features
 from unittest.mock import inplace
 
@@ -23,8 +23,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.linear_model import LogisticRegression
-from xgboost import XGBClassifier
-from lightgbm import LGBMClassifier
+from sklearn.model_selection import cross_val_score
+import optuna
 
 # teams_merged = pd.merge(teams_data, teams_post_data, on=['tmID', 'year'], how='left')
 
@@ -98,6 +98,49 @@ y_train = train_data[target]
 X_test = test_data[features]
 y_test = test_data[target]
 
+def optimize_rfc(trial):
+    n_estimators = trial.suggest_int('n_estimators', 50, 300)
+    max_depth = trial.suggest_int('max_depth', 5, 30)
+    min_samples_split = trial.suggest_int('min_samples_split', 2, 10)
+    min_samples_leaf = trial.suggest_int('min_samples_leaf', 1, 5)
+
+    model = RandomForestClassifier(
+        n_estimators=n_estimators,
+        max_depth=max_depth,
+        min_samples_split=min_samples_split,
+        min_samples_leaf=min_samples_leaf
+    )
+
+    score = cross_val_score(model, X_train, y_train, cv=5, scoring='accuracy').mean()
+    return score
+
+def optimize_abc(trial):
+    n_estimators = trial.suggest_int('n_estimators', 50, 300)
+    learning_rate = trial.suggest_float('learning_rate', 0.01, 1.0)
+
+    model = AdaBoostClassifier(
+        n_estimators=n_estimators,
+        learning_rate=learning_rate,
+        algorithm='SAMME'
+    )
+
+    score = cross_val_score(model, X_train, y_train, cv=5, scoring='accuracy').mean()
+    return score
+
+def optimize_gbc(trial):
+    n_estimators = trial.suggest_int('n_estimators', 50, 300)
+    learning_rate = trial.suggest_float('learning_rate', 0.01, 1.0)
+    max_depth = trial.suggest_int('max_depth', 3, 20)
+
+    model = GradientBoostingClassifier(
+        n_estimators=n_estimators,
+        learning_rate=learning_rate,
+        max_depth=max_depth
+    )
+
+    score = cross_val_score(model, X_train, y_train, cv=5, scoring='accuracy').mean()
+    return score
+
 models = []
 models.append(('LR', LogisticRegression(max_iter=1000)))
 models.append(('SVC', SVC()))
@@ -105,9 +148,18 @@ models.append(('DTC', DecisionTreeClassifier()))
 models.append(('KNN', KNeighborsClassifier()))
 models.append(('GNB', GaussianNB()))
 models.append(('MLP', MLPClassifier(max_iter=600)))
-models.append(('RFC', RandomForestClassifier()))
-models.append(('ABC', AdaBoostClassifier(algorithm='SAMME')))
-models.append(('GBC', GradientBoostingClassifier()))
+
+rfc_study = optuna.create_study(direction='maximize')
+rfc_study.optimize(optimize_rfc, n_trials=50)
+models.append(('RFC', RandomForestClassifier(**rfc_study.best_params)))
+
+abc_study = optuna.create_study(direction='maximize')
+abc_study.optimize(optimize_abc, n_trials=1)
+models.append(('ABC', AdaBoostClassifier(**abc_study.best_params, algorithm='SAMME')))
+
+gbc_study = optuna.create_study(direction='maximize')
+gbc_study.optimize(optimize_gbc, n_trials=1)
+models.append(('GBC', GradientBoostingClassifier(**gbc_study.best_params)))
 
 # Train and evaluate each model
 results = {}
@@ -128,7 +180,7 @@ for name, model in models:
 # Make predictions for the next season using the best model
 # For simplicity, let’s assume you want to predict with the last model in the list
 best_model = models[-1][1]  # Example: MLPClassifier
-next_season = test_data[test_data.year == 9]  # Replace '6' with the next season
+next_season = test_data[test_data.year == 9].copy()  # Replace '6' with the next season
 X_next_season = next_season[features]
 
 next_season_predictions = best_model.predict(X_next_season)
