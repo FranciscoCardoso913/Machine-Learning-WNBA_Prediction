@@ -1,4 +1,3 @@
-from mailcap import subst
 from pyexpat import features
 from unittest.mock import inplace
 
@@ -45,6 +44,7 @@ def clear_teams(teams):
 
 def clear_coaches(coaches):
     coaches = coaches.drop(["lgID"], axis=1) #TODO: see year
+    coaches.rename(columns={'won': 'coach_won', 'lost':'coach_lost'}, inplace=True)
     return coaches
 
 def clear_players_teams(players_teams):
@@ -68,8 +68,8 @@ series_post = clear_series_post(pd.read_csv('data/series_post.csv'))
 teams_post = clear_teams_post(pd.read_csv('data/teams_post.csv'))
 df = clear_teams(pd.read_csv('data/teams.csv'))
 
-#merged_teams = pd.merge(df, teams_post, on=["tmID", 'year'])
-#merged_teams = pd.merge(merged_teams, coaches, on=["tmID", 'year'])
+
+
 #merged_teams = pd.merge(merged_teams, series_post, on=["tmID", 'year'])
 #print(merged_teams)
 
@@ -81,15 +81,17 @@ df.loc[df['franchID']!= df['franchID'].shift(-1),'playoffNextYear'] = None
 df.dropna(subset= ['playoffNextYear'], inplace=True)
 
 df['playoff'] = df['playoff'] == 'Y'
-
-features = ['homeW', 'awayW', 'attend','playoff']
-
+df = pd.merge(df, teams_post, on=["tmID", 'year'], how='left')
+df.fillna(0, inplace=True)
+df = pd.merge(df, coaches, on=["tmID", 'year'], how='left')
+print(df[df['playoff']==True])
+features = ['won', 'lost','playoff', 'W','L']
 
 target = 'playoffNextYear'
 
 # Splitting data into training (earlier seasons) and testing (recent seasons)
 # Assuming year 5 is an arbitrary cutoff for training vs test data
-train_data = df[df.year <= 6].copy()  # Earlier seasons
+train_data = df[df.year <=6].copy()  # Earlier seasons
 test_data = df[df.year > 6].copy()    # Recent seasons
 
 X_train = train_data[features]
@@ -108,6 +110,7 @@ models.append(('MLP', MLPClassifier(max_iter=600)))
 models.append(('RFC', RandomForestClassifier()))
 models.append(('ABC', AdaBoostClassifier(algorithm='SAMME')))
 models.append(('GBC', GradientBoostingClassifier()))
+
 
 # Train and evaluate each model
 results = {}
