@@ -24,14 +24,19 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.linear_model import LogisticRegression
 from xgboost import XGBClassifier
 from lightgbm import LGBMClassifier
+# Set maximum rows to None (no truncation)
+pd.set_option('display.max_rows', None)
 
+# Set maximum columns to None (no truncation)
+pd.set_option('display.max_columns', None)
 # teams_merged = pd.merge(teams_data, teams_post_data, on=['tmID', 'year'], how='left')
 
 #pmerged_df = pd.merge(teams, coaches, on='tmID', how='left', validate="many_to_many")  # you can also use 'left', 'right', or 'outer' depending on your needsDIDteam_
 #print(pmerged_df.head())
 
 def clear_players(players):
-    players = players.drop(["pos"], axis=1)
+    players = players.drop(["pos", "deathDate", "birthDate"], axis=1)
+    players.rename(columns={"bioID": "playerID"}, inplace=True)
     return players
 
 def clear_awards(awards):
@@ -73,6 +78,24 @@ df = clear_teams(pd.read_csv('data/teams.csv'))
 #merged_teams = pd.merge(merged_teams, series_post, on=["tmID", 'year'])
 #print(merged_teams)
 
+awards_count = awards_players.groupby('playerID').size().reset_index(name='awards_count')
+#print(awards_count)
+players = players.merge(awards_count, on=['playerID'], how='left')
+players["awards_count"].fillna(0, inplace=True)
+
+#print(players.sort_values("awards_count", ascending=False).head())
+
+players_teams_merged = players.merge(players_teams, on=['playerID'])
+#print(players_teams_merged.head())
+team_awards = players_teams_merged.groupby(["tmID"])["awards_count"].sum().reset_index()
+
+
+df = df.merge(team_awards, on=['tmID'])
+df["awards_count"].fillna(0, inplace=True)
+
+
+
+
 
 
 df = df.sort_values(by=['franchID', 'year'])
@@ -84,11 +107,10 @@ df['playoff'] = df['playoff'] == 'Y'
 df = pd.merge(df, teams_post, on=["tmID", 'year'], how='left')
 df.fillna(0, inplace=True)
 df = pd.merge(df, coaches, on=["tmID", 'year'], how='left')
-print(df[df['playoff']==True])
-features = ['won', 'lost','playoff', 'W','L']
+#print(df[df['playoff']==True])
+features = ['won', 'lost','playoff', 'W','L', "coach_won", "coach_lost", "awards_count" ]
 
 target = 'playoffNextYear'
-
 # Splitting data into training (earlier seasons) and testing (recent seasons)
 # Assuming year 5 is an arbitrary cutoff for training vs test data
 train_data = df[df.year <=6].copy()  # Earlier seasons
@@ -102,7 +124,7 @@ y_test = test_data[target]
 
 models = []
 models.append(('LR', LogisticRegression(max_iter=1000)))
-models.append(('SVC', SVC()))
+#models.append(('SVC', SVC()))
 models.append(('DTC', DecisionTreeClassifier()))
 models.append(('KNN', KNeighborsClassifier()))
 models.append(('GNB', GaussianNB()))
@@ -117,16 +139,23 @@ results = {}
 for name, model in models:
     # Train the model
     model.fit(X_train, y_train)
-
+    print(model)
     # Predict on the test data
-    y_pred = model.predict(X_test)
+    #y_pred = model.predict(X_test)
+    y_pred = model.predict_proba(X_test)
 
+
+
+    #y_pred_wins = [sublist[1] for sublist in y_pred]
+
+    y_pred_wins = y_pred[:,1]
+    print(y_pred_wins.shape)
     # Evaluate the accuracy
-    accuracy = accuracy_score(y_test, y_pred)
+    #accuracy = accuracy_score(y_test,y_pred_wins)
 
     # Store the result
-    results[name] = accuracy
-    print(f'{name} Accuracy: {accuracy * 100:.2f}%')
+    #results[name] = accuracy
+    #print(f'{name} Accuracy: {accuracy * 100:.2f}%')
 
 # Make predictions for the next season using the best model
 # For simplicity, let’s assume you want to predict with the last model in the list
@@ -134,8 +163,8 @@ best_model = models[-1][1]  # Example: MLPClassifier
 next_season = test_data[test_data.year == 9]  # Replace '6' with the next season
 X_next_season = next_season[features]
 
-next_season_predictions = best_model.predict(X_next_season)
-next_season['predicted_playoff'] = next_season_predictions
+next_season_predictions = best_model.predict_proba(X_next_season)
+next_season['predicted_playoff'] = next_season_predictions[:,1]
 
 # Output predictions for the next season
 print(next_season[['franchID', 'year', 'predicted_playoff']])
