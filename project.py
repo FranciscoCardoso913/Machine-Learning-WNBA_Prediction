@@ -1,29 +1,11 @@
-from pyexpat import features
-from unittest.mock import inplace
-
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.svm import SVC
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.naive_bayes import GaussianNB
-from sklearn.neural_network import MLPClassifier
-from sklearn.metrics import accuracy_score
-from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier, RandomForestClassifier
 from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score
-from sklearn.model_selection import StratifiedKFold, GridSearchCV, cross_val_predict, cross_validate, train_test_split
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier
-from sklearn.preprocessing import StandardScaler
-from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.linear_model import LogisticRegression
-from xgboost import XGBClassifier
-from lightgbm import LGBMClassifier
 # Set maximum rows to None (no truncation)
 pd.set_option('display.max_rows', None)
 
@@ -74,7 +56,6 @@ teams_post = clear_teams_post(pd.read_csv('data/teams_post.csv'))
 df = clear_teams(pd.read_csv('data/teams.csv'))
 
 
-
 #merged_teams = pd.merge(merged_teams, series_post, on=["tmID", 'year'])
 #print(merged_teams)
 
@@ -92,11 +73,6 @@ team_awards = players_teams_merged.groupby(["tmID"])["awards_count"].sum().reset
 
 df = df.merge(team_awards, on=['tmID'])
 df["awards_count"].fillna(0, inplace=True)
-
-
-
-
-
 
 df = df.sort_values(by=['franchID', 'year'])
 df['playoffNextYear'] = df['playoff'].shift(-1)
@@ -141,21 +117,17 @@ for name, model in models:
     model.fit(X_train, y_train)
     print(model)
     # Predict on the test data
-    #y_pred = model.predict(X_test)
-    y_pred = model.predict_proba(X_test)
+    y_pred = model.predict(X_test)
+    # y_pred = model.predict_proba(X_test)
 
+    # y_pred_wins = y_pred[:,1]
 
-
-    #y_pred_wins = [sublist[1] for sublist in y_pred]
-
-    y_pred_wins = y_pred[:,1]
-    print(y_pred_wins.shape)
     # Evaluate the accuracy
-    #accuracy = accuracy_score(y_test,y_pred_wins)
+    accuracy = accuracy_score(y_test,y_pred)
 
     # Store the result
-    #results[name] = accuracy
-    #print(f'{name} Accuracy: {accuracy * 100:.2f}%')
+    results[name] = accuracy
+    print(f'{name} Accuracy: {accuracy * 100:.2f}%')
 
 # Make predictions for the next season using the best model
 # For simplicity, let’s assume you want to predict with the last model in the list
@@ -163,8 +135,10 @@ best_model = models[-1][1]  # Example: MLPClassifier
 next_season = test_data[test_data.year == 9]  # Replace '6' with the next season
 X_next_season = next_season[features]
 
-next_season_predictions = best_model.predict_proba(X_next_season)
-next_season['predicted_playoff'] = next_season_predictions[:,1]
+next_season_predictions = best_model.predict(X_next_season)
+# next_season_predictions = best_model.predict_proba(X_next_season)
+next_season['predicted_playoff'] = next_season_predictions
+# next_season['predicted_playoff'] = next_season_predictions[:,1]
 
 # Output predictions for the next season
 print(next_season[['franchID', 'year', 'predicted_playoff']])
