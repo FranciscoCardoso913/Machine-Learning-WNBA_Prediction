@@ -6,6 +6,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
 # Set maximum rows to None (no truncation)
 pd.set_option('display.max_rows', None)
 
@@ -59,20 +60,49 @@ df = clear_teams(pd.read_csv('data/teams.csv'))
 #merged_teams = pd.merge(merged_teams, series_post, on=["tmID", 'year'])
 #print(merged_teams)
 
-awards_count = awards_players.groupby('playerID').size().reset_index(name='awards_count')
-#print(awards_count)
-players = players.merge(awards_count, on=['playerID'], how='left')
-players["awards_count"].fillna(0, inplace=True)
+# awards_count = awards_players.groupby('playerID').size().reset_index(name='awards_count')
+# #print(awards_count)
+# players = players.merge(awards_count, on=['playerID'], how='left')
+# players["awards_count"].fillna(0, inplace=True)
+# 
+# #print(players.sort_values("awards_count", ascending=False).head())
+# 
+# players_teams_merged = players.merge(players_teams, on=['playerID'])
+# #print(players_teams_merged.head())
+# team_awards = players_teams_merged.groupby(["tmID"])["awards_count"].sum().reset_index()
+# 
+# 
+# df = df.merge(team_awards, on=['tmID'])
+# df["awards_count"].fillna(0, inplace=True)
 
-#print(players.sort_values("awards_count", ascending=False).head())
+# Step 1: Calculate the total awards per player for each year
+# Assuming 'award' is the column that lists the awards
+player_awards_by_year = awards_players.groupby(['playerID', 'year']).size().reset_index(name='awards_count')
 
-players_teams_merged = players.merge(players_teams, on=['playerID'])
-#print(players_teams_merged.head())
-team_awards = players_teams_merged.groupby(["tmID"])["awards_count"].sum().reset_index()
+# Step 2: Apply a cumulative sum to get the total awards by year for each player
+player_awards_by_year['cumulative_awards'] = player_awards_by_year.groupby('playerID')['awards_count'].cumsum()
 
+# Example output columns: ['playerID', 'yearID', 'awards_count', 'cumulative_awards']
 
-df = df.merge(team_awards, on=['tmID'])
-df["awards_count"].fillna(0, inplace=True)
+# Step 3: Merge cumulative player awards with team_players data
+team_players_awards = pd.merge(players_teams, player_awards_by_year[['playerID', 'year', 'cumulative_awards']],
+                               on=['playerID', 'year'], how='left')
+
+# Fill missing values (for players with no awards) with 0
+team_players_awards['cumulative_awards'].fillna(0, inplace=True)
+
+# Step 4: Group by team and year to sum the cumulative awards for each team
+team_awards_by_year = team_players_awards.groupby(['tmID', 'year'])['cumulative_awards'].sum().reset_index()
+
+# Example output columns: ['tmID', 'yearID', 'cumulative_awards']
+
+# Step 5: Merge cumulative team awards into your main dataframe
+df = df.merge(team_awards_by_year, on=['tmID', 'year'], how='left')
+
+# Fill any missing awards with 0
+df['cumulative_awards'].fillna(0, inplace=True)
+print(df.sort_values(by='cumulative_awards', ascending=False).head(5))
+
 
 df = df.sort_values(by=['franchID', 'year'])
 df['playoffNextYear'] = df['playoff'].shift(-1)
@@ -84,12 +114,12 @@ df = pd.merge(df, teams_post, on=["tmID", 'year'], how='left')
 df.fillna(0, inplace=True)
 df = pd.merge(df, coaches, on=["tmID", 'year'], how='left')
 #print(df[df['playoff']==True])
-features = ['won', 'lost','playoff', 'W','L', "coach_won", "coach_lost", "awards_count" ]
+features = ['won', 'lost','playoff', 'W','L', "coach_won", "coach_lost", "cumulative_awards"]
 
 target = 'playoffNextYear'
 # Splitting data into training (earlier seasons) and testing (recent seasons)
 # Assuming year 5 is an arbitrary cutoff for training vs test data
-train_data = df[df.year <=6].copy()  # Earlier seasons
+train_data = df[df.year <= 6].copy()  # Earlier seasons
 test_data = df[df.year > 6].copy()    # Recent seasons
 
 X_train = train_data[features]
@@ -100,7 +130,7 @@ y_test = test_data[target]
 
 models = []
 models.append(('LR', LogisticRegression(max_iter=1000)))
-#models.append(('SVC', SVC()))
+models.append(('SVC', SVC()))
 models.append(('DTC', DecisionTreeClassifier()))
 models.append(('KNN', KNeighborsClassifier()))
 models.append(('GNB', GaussianNB()))
