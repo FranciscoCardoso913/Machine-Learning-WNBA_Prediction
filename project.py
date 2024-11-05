@@ -101,7 +101,6 @@ df = df.merge(team_awards_by_year, on=['tmID', 'year'], how='left')
 
 # Fill any missing awards with 0
 df['cumulative_awards'].fillna(0, inplace=True)
-print(df.sort_values(by='cumulative_awards', ascending=False).head(5))
 
 
 df = df.sort_values(by=['franchID', 'year'])
@@ -113,8 +112,36 @@ df['playoff'] = df['playoff'] == 'Y'
 df = pd.merge(df, teams_post, on=["tmID", 'year'], how='left')
 df.fillna(0, inplace=True)
 df = pd.merge(df, coaches, on=["tmID", 'year'], how='left')
-#print(df[df['playoff']==True])
-features = ['won', 'lost','playoff', 'W','L', "coach_won", "coach_lost", "cumulative_awards"]
+
+all_time_best_players = players_teams.groupby('playerID')["points"].sum().reset_index().sort_values(by=['points'], ascending=False)
+top_all_time_best_players = all_time_best_players.merge(players_teams, on=['playerID']).groupby('playerID')
+top_all_time_best_players = top_all_time_best_players.head(5)
+
+tmid_counts = top_all_time_best_players['tmID'].value_counts().reset_index()
+tmid_counts.columns = ['tmID', 'tmID_count']
+
+tmid_counts = tmid_counts.rename(columns={'tmID_count': 'number_of_top_players'})
+
+df = df.merge(tmid_counts, on=['tmID'], how='left')
+df['number_of_top_players'].fillna(0, inplace=True)
+
+# top_all_time_best_players["has_top_player"] = True
+# df = df.merge(top_all_time_best_player]s, on=['tmID', 'year'], how='left')
+
+# print(df)
+
+# print(df[df["has_top_player"] == False])
+
+# print(top_all_tie_best_players.head(5))
+# print(all_time_best_players.columns.tolist())
+# all_time_best_players = all_time_best_players.merge(players_teams, on=['playerID'])
+# print(all_time_best_players.head(5))
+# df = pd.merge(df, all_time_best_players, on=['tmID']) 
+
+# print(df.head(5))
+# print(df.columns.tolist())
+
+features = ['won', 'lost','playoff', 'W','L', "coach_won", "coach_lost", "cumulative_awards", "number_of_top_players" ]
 
 target = 'playoffNextYear'
 # Splitting data into training (earlier seasons) and testing (recent seasons)
