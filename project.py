@@ -111,7 +111,26 @@ df.dropna(subset= ['playoffNextYear'], inplace=True)
 df['playoff'] = df['playoff'] == 'Y'
 df = pd.merge(df, teams_post, on=["tmID", 'year'], how='left')
 df.fillna(0, inplace=True)
-df = pd.merge(df, coaches, on=["tmID", 'year'], how='left')
+# df = pd.merge(df, coaches, on=["tmID", 'year'], how='left')
+
+coaches["WR"] = coaches["coach_won"] / (coaches["coach_won"] + coaches["coach_lost"])
+# if stint 0, firstCoachWR = secondCoachWR = WR, if stint != 0, firstCoachWR = stint1 and secondCoachWR = stint2
+# Create two separate DataFrames for first and second coach WR
+first_coach_wr = coaches[coaches['stint'] == 1][['year', 'tmID', 'WR']].rename(columns={'WR': 'firstCoachWR'})
+second_coach_wr = coaches[coaches['stint'] == 2][['year', 'tmID', 'WR']].rename(columns={'WR': 'secondCoachWR'})
+
+# Step 3: If stint == 0, assign the same WR to both first and second coach
+same_coach_wr = coaches[coaches['stint'] == 0][['year', 'tmID', 'WR']]
+same_coach_wr['firstCoachWR'] = same_coach_wr['WR']
+same_coach_wr['secondCoachWR'] = same_coach_wr['WR']
+same_coach_wr = same_coach_wr[['year', 'tmID', 'firstCoachWR', 'secondCoachWR']]
+
+# Step 4: Combine all the WR data (for all stints) into a single DataFrame
+combined_wr = pd.concat([first_coach_wr, second_coach_wr, same_coach_wr], axis=0).drop_duplicates(subset=['year', 'tmID'])
+
+# Step 5: Merge this combined data into the teams DataFrame
+df = pd.merge(df, combined_wr, on=['year', 'tmID'], how='left')
+print(df.head())
 
 all_time_best_players = players_teams.groupby('playerID')["points"].sum().reset_index().sort_values(by=['points'], ascending=False)
 top_all_time_best_players = all_time_best_players.merge(players_teams, on=['playerID']).groupby('playerID')
@@ -141,7 +160,7 @@ df['number_of_top_players'].fillna(0, inplace=True)
 # print(df.head(5))
 # print(df.columns.tolist())
 
-features = ['won', 'lost','playoff', 'W','L', "coach_won", "coach_lost", "cumulative_awards", "number_of_top_players" ]
+features = ['won', 'lost','playoff', 'W','L', "cumulative_awards", "number_of_top_players" ]
 
 target = 'playoffNextYear'
 # Splitting data into training (earlier seasons) and testing (recent seasons)
