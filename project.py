@@ -20,10 +20,14 @@ pd.set_option('display.max_columns', None)
 def error_eval(test, pred):
     err= 0
     i =0
-    for index, value in y_test.items():
+    su= 0
+    second_column = pred[:, 1]
+    scaled = (second_column * 8) / second_column.sum()
+    for index, value in test.items():
         label = 0
         if (value=='Y'): label=1
-        err+= abs(pred[i][1] - label)
+        err+= abs(scaled[i] - label)
+        su += scaled[i]
         i+=1
     return err
 def clear_players(players):
@@ -73,7 +77,7 @@ series_post = clear_series_post(pd.read_csv('data/series_post.csv'))
 teams_post = clear_teams_post(pd.read_csv('data/teams_post.csv'))
 df = clear_teams(pd.read_csv('data/teams.csv'))
 
-
+print(f"Number of rows where year == 9: {(df['year'] == 9).sum()}\n\n")
 #merged_teams = pd.merge(merged_teams, series_post, on=["tmID", 'year'])
 #print(merged_teams)
 
@@ -115,6 +119,7 @@ team_awards_by_year = team_players_awards.groupby(['tmID', 'year'])['cumulative_
 
 # Step 5: Merge cumulative team awards into your main dataframe
 df = df.merge(team_awards_by_year, on=['tmID', 'year'], how='left')
+print(f"\n\nNumber of rows where year == 9: {(df['year'] == 9).sum()}\n\n")
 
 # Fill any missing awards with 0
 df['cumulative_awards'].fillna(0, inplace=True)
@@ -123,10 +128,14 @@ df = df.sort_values(by=['franchID', 'year'])
 df['playoffNextYear'] = df['playoff'].shift(-1)
 df.loc[df['franchID']!= df['franchID'].shift(-1),'playoffNextYear'] = None
 df.dropna(subset= ['playoffNextYear'], inplace=True)
+print(f"\n\nNumber of rows where year == 9: {(df['year'] == 9).sum()}\n\n")
 
 df['playoff'] = df['playoff'] == 'Y'
 df = pd.merge(df, teams_post, on=["tmID", 'year'], how='left')
 df.fillna(0, inplace=True)
+
+df['shot_accuracy'] = (df['o_fgm'] + df['o_ftm'] + df['o_3pm']) / (df['o_fga'] + df['o_fta'] + df['o_3pa'])
+
 # df = pd.merge(df, coaches, on=["tmID", 'year'], how='left')
 
 coaches["WR"] = coaches["coach_won"] / (coaches["coach_won"] + coaches["coach_lost"])
@@ -146,7 +155,6 @@ combined_wr = pd.concat([first_coach_wr, second_coach_wr, same_coach_wr], axis=0
 
 # Step 5: Merge this combined data into the teams DataFrame
 df = pd.merge(df, combined_wr, on=['year', 'tmID'], how='left')
-print(df.head())
 
 all_time_best_players = players_teams.groupby('playerID')["points"].sum().reset_index().sort_values(by=['points'], ascending=False)
 top_all_time_best_players = all_time_best_players.merge(players_teams, on=['playerID']).groupby('playerID')
@@ -160,7 +168,7 @@ tmid_counts = tmid_counts.rename(columns={'tmID_count': 'number_of_top_players'}
 df = df.merge(tmid_counts, on=['tmID'], how='left')
 df['number_of_top_players'].fillna(0, inplace=True)
 
-print(df.columns.tolist())
+#print(df.columns.tolist())
 
 # print(df)
 
@@ -178,7 +186,7 @@ print(df.columns.tolist())
 features = [
     "won", "lost", "playoff", "W", "L", "cumulative_awards", "number_of_top_players", "rank", "firstRound", "semis", "finals", 
     "homeW", "homeL", "awayW", "awayL", "GP", "o_3pm", "o_3pa", "min", "confW", "confL", "attend",
-    "o_fgm", "o_fga", "o_ftm", "o_fta", "o_reb", "d_reb", "d_to", "d_stl", "d_blk"
+    "o_fgm", "o_fga", "o_ftm", "o_fta", "o_reb", "d_reb", "d_to", "d_stl", "d_blk","shot_accuracy"
 ]
 
 target = 'playoffNextYear'
@@ -221,8 +229,8 @@ for i in range(1):
         y_pred = model.predict_proba(X_test)
 
         # Evaluate the accuracy
-        print("here?")
-        print(y_test)
+        #print("here?")
+        #print(y_test)
         #accuracy = accuracy_score(y_test,y_pred)
         accuracy = error_eval(y_test, y_pred)
         
@@ -232,7 +240,7 @@ for i in range(1):
         # Store the result
         results[name] = accuracy
         accuracies.append(accuracy)
-        print(f'{name} Accuracy: {accuracy}%')
+        print(f'{name} Accuracy: {accuracy}')
     
     if(min(accuracies) < max_acc):
         best_model = local_best_model
