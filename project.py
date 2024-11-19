@@ -17,6 +17,15 @@ pd.set_option('display.max_columns', None)
 #pmerged_df = pd.merge(teams, coaches, on='tmID', how='left', validate="many_to_many")  # you can also use 'left', 'right', or 'outer' depending on your needsDIDteam_
 #print(pmerged_df.head())
 
+def error_eval(test, pred):
+    err= 0
+    i =0
+    for index, value in y_test.items():
+        label = 0
+        if (value=='Y'): label=1
+        err+= abs(pred[i][1] - label)
+        i+=1
+    return err
 def clear_players(players):
     players = players.drop(["pos", "deathDate", "birthDate"], axis=1)
     players.rename(columns={"bioID": "playerID"}, inplace=True)
@@ -176,8 +185,8 @@ target = 'playoffNextYear'
 
 # Splitting data into training (earlier seasons) and testing (recent seasons)
 # Assuming year 5 is an arbitrary cutoff for training vs test data
-train_data = df[df.year <= 6].copy()  # Earlier seasons
-test_data = df[df.year > 6].copy()    # Recent seasons
+train_data = df[df.year <= 8].copy()  # Earlier seasons
+test_data = df[df.year > 8].copy()    # Recent seasons
 
 X_train = train_data[features]
 y_train = train_data[target]
@@ -187,7 +196,7 @@ y_test = test_data[target]
 
 models = []
 models.append(('LR', LogisticRegression(max_iter=10000)))
-models.append(('SVC', SVC()))
+#models.append(('SVC', SVC()))
 models.append(('DTC', DecisionTreeClassifier()))
 models.append(('KNN', KNeighborsClassifier()))
 models.append(('GNB', GaussianNB()))
@@ -196,36 +205,39 @@ models.append(('RFC', RandomForestClassifier()))
 models.append(('ABC', AdaBoostClassifier(algorithm='SAMME')))
 models.append(('GBC', GradientBoostingClassifier()))
 
-max_acc = 0
+max_acc = 12
 best_model = None
 for i in range(1):
-    accuracies = [0]    
+    accuracies = [12]    
     local_best_model = None
     # Train and evaluate each model
     results = {}
     for name, model in models:
         # Train the model
         model.fit(X_train, y_train)
-        print(model)
+        #print(model)
         # Predict on the test data
         y_pred = model.predict(X_test)
-        # y_pred = model.predict_proba(X_test)
+        y_pred = model.predict_proba(X_test)
 
         # Evaluate the accuracy
-        accuracy = accuracy_score(y_test,y_pred)
+        print("here?")
+        print(y_test)
+        #accuracy = accuracy_score(y_test,y_pred)
+        accuracy = error_eval(y_test, y_pred)
         
-        if(accuracy > max(accuracies)):
+        if(accuracy < min(accuracies)):
             local_best_model = model
 
         # Store the result
         results[name] = accuracy
         accuracies.append(accuracy)
-        print(f'{name} Accuracy: {accuracy * 100:.2f}%')
+        print(f'{name} Accuracy: {accuracy}%')
     
-    if(max(accuracies) > max_acc):
+    if(min(accuracies) < max_acc):
         best_model = local_best_model
 
-    max_acc = max(max_acc, max(accuracies))
+    max_acc = min(max_acc, min(accuracies))
 
 print("Accuracy: ", max_acc * 100)
 
