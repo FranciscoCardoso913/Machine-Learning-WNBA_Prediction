@@ -28,6 +28,15 @@ def clear_awards(awards):
 
 def clear_teams(teams):
     teams = teams.drop(["lgID", "divID", "seeded", "confID", "name", "arena" ], axis=1) #confID, arena?
+    
+    teams["firstRound"] = teams["firstRound"].replace({"W": 1, "L": 0})
+    teams["semis"] = teams["semis"].replace({"W": 1, "L": 0})
+    teams["finals"] = teams["finals"].replace({"W": 1, "L": 0})
+    
+    teams["firstRound"] = teams["firstRound"].fillna(0)
+    teams["semis"] = teams["semis"].fillna(0)
+    teams["finals"] = teams["finals"].fillna(0)
+    
     return teams
 
 def clear_coaches(coaches):
@@ -46,7 +55,6 @@ def clear_series_post(series_post):
 def clear_teams_post(teams_post):
     teams_post = teams_post.drop(["lgID"],axis=1)
     return  teams_post
-
 
 awards_players = clear_awards(pd.read_csv('data/awards_players.csv'))
 coaches = clear_coaches(pd.read_csv('data/coaches.csv'))
@@ -102,7 +110,6 @@ df = df.merge(team_awards_by_year, on=['tmID', 'year'], how='left')
 # Fill any missing awards with 0
 df['cumulative_awards'].fillna(0, inplace=True)
 
-
 df = df.sort_values(by=['franchID', 'year'])
 df['playoffNextYear'] = df['playoff'].shift(-1)
 df.loc[df['franchID']!= df['franchID'].shift(-1),'playoffNextYear'] = None
@@ -144,8 +151,7 @@ tmid_counts = tmid_counts.rename(columns={'tmID_count': 'number_of_top_players'}
 df = df.merge(tmid_counts, on=['tmID'], how='left')
 df['number_of_top_players'].fillna(0, inplace=True)
 
-# top_all_time_best_players["has_top_player"] = True
-# df = df.merge(top_all_time_best_player]s, on=['tmID', 'year'], how='left')
+print(df.columns.tolist())
 
 # print(df)
 
@@ -160,9 +166,14 @@ df['number_of_top_players'].fillna(0, inplace=True)
 # print(df.head(5))
 # print(df.columns.tolist())
 
-features = ['won', 'lost','playoff', 'W','L', "cumulative_awards", "number_of_top_players" ]
+features = [
+    "won", "lost", "playoff", "W", "L", "cumulative_awards", "number_of_top_players", "rank", "firstRound", "semis", "finals", 
+    "homeW", "homeL", "awayW", "awayL", "GP", "o_3pm", "o_3pa", "min", "confW", "confL", "attend",
+    "o_fgm", "o_fga", "o_ftm", "o_fta", "o_reb", "d_reb", "d_to", "d_stl", "d_blk"
+]
 
 target = 'playoffNextYear'
+
 # Splitting data into training (earlier seasons) and testing (recent seasons)
 # Assuming year 5 is an arbitrary cutoff for training vs test data
 train_data = df[df.year <= 6].copy()  # Earlier seasons
@@ -175,39 +186,54 @@ X_test = test_data[features]
 y_test = test_data[target]
 
 models = []
-models.append(('LR', LogisticRegression(max_iter=1000)))
+models.append(('LR', LogisticRegression(max_iter=10000)))
 models.append(('SVC', SVC()))
 models.append(('DTC', DecisionTreeClassifier()))
 models.append(('KNN', KNeighborsClassifier()))
 models.append(('GNB', GaussianNB()))
-models.append(('MLP', MLPClassifier(max_iter=600)))
+models.append(('MLP', MLPClassifier(max_iter=6000)))
 models.append(('RFC', RandomForestClassifier()))
 models.append(('ABC', AdaBoostClassifier(algorithm='SAMME')))
 models.append(('GBC', GradientBoostingClassifier()))
 
+max_acc = 0
+best_model = None
+for i in range(1):
+    accuracies = [0]    
+    local_best_model = None
+    # Train and evaluate each model
+    results = {}
+    for name, model in models:
+        # Train the model
+        model.fit(X_train, y_train)
+        print(model)
+        # Predict on the test data
+        y_pred = model.predict(X_test)
+        # y_pred = model.predict_proba(X_test)
 
-# Train and evaluate each model
-results = {}
-for name, model in models:
-    # Train the model
-    model.fit(X_train, y_train)
-    print(model)
-    # Predict on the test data
-    y_pred = model.predict(X_test)
-    # y_pred = model.predict_proba(X_test)
+        # Evaluate the accuracy
+        accuracy = accuracy_score(y_test,y_pred)
+        
+        if(accuracy > max(accuracies)):
+            local_best_model = model
 
-    # y_pred_wins = y_pred[:,1]
+        # Store the result
+        results[name] = accuracy
+        accuracies.append(accuracy)
+        print(f'{name} Accuracy: {accuracy * 100:.2f}%')
+    
+    if(max(accuracies) > max_acc):
+        best_model = local_best_model
 
-    # Evaluate the accuracy
-    accuracy = accuracy_score(y_test,y_pred)
+    max_acc = max(max_acc, max(accuracies))
 
-    # Store the result
-    results[name] = accuracy
-    print(f'{name} Accuracy: {accuracy * 100:.2f}%')
+print("Accuracy: ", max_acc * 100)
+
+# Using the test data
 
 # Make predictions for the next season using the best model
 # For simplicity, let’s assume you want to predict with the last model in the list
-best_model = models[-1][1]  # Example: MLPClassifier
+# best_model = models[-1][1]  # Example: MLPClassifier
 next_season = test_data[test_data.year == 9]  # Replace '6' with the next season
 X_next_season = next_season[features]
 
