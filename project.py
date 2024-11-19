@@ -213,43 +213,69 @@ models.append(('RFC', RandomForestClassifier()))
 models.append(('ABC', AdaBoostClassifier(algorithm='SAMME')))
 models.append(('GBC', GradientBoostingClassifier()))
 
-max_acc = 12
-best_model = None
-for i in range(1):
-    accuracies = [12]    
-    local_best_model = None
-    # Train and evaluate each model
-    results = {}
-    for name, model in models:
-        # Train the model
-        model.fit(X_train, y_train)
-        #print(model)
-        # Predict on the test data
-        y_pred = model.predict(X_test)
-        y_pred = model.predict_proba(X_test)
+def err_evaluation():
+    max_acc = 12
+    best_model = None
+    for i in range(1):
+        accuracies = [12]    
+        local_best_model = None
+        # Train and evaluate each model
+        results = {}
+        for name, model in models:
+            # Train the model
+            model.fit(X_train, y_train)
+            y_pred = model.predict_proba(X_test)
+            accuracy = error_eval(y_test, y_pred)
+            
+            if(accuracy < min(accuracies)):
+                local_best_model = model
 
-        # Evaluate the accuracy
-        #print("here?")
-        #print(y_test)
-        #accuracy = accuracy_score(y_test,y_pred)
-        accuracy = error_eval(y_test, y_pred)
+            # Store the result
+            results[name] = accuracy
+            accuracies.append(accuracy)
+            print(f'{name} Error: {accuracy}')
         
-        if(accuracy < min(accuracies)):
-            local_best_model = model
+        if(min(accuracies) < max_acc):
+            best_model = local_best_model
 
-        # Store the result
-        results[name] = accuracy
-        accuracies.append(accuracy)
-        print(f'{name} Accuracy: {accuracy}')
-    
-    if(min(accuracies) < max_acc):
-        best_model = local_best_model
+        max_acc = min(max_acc, min(accuracies))
 
-    max_acc = min(max_acc, min(accuracies))
+    print("Error: ", max_acc)
+    return best_model
 
-print("Accuracy: ", max_acc * 100)
+def normal_evaluation():
+    max_acc = 0
+    best_model = None
+    for i in range(1):
+        accuracies = [0]    
+        local_best_model = None
+        # Train and evaluate each model
+        results = {}
+        for name, model in models:
+            # Train the model
+            model.fit(X_train, y_train)
+            y_pred = model.predict(X_test)
+            accuracy = accuracy_score(y_test,y_pred)
+            
+            if(accuracy > max(accuracies)):
+                local_best_model = model
+
+            # Store the result
+            results[name] = accuracy
+            accuracies.append(accuracy)
+            print(f'{name} Accuracy: {accuracy*100}%')
+        
+        if(max(accuracies) > max_acc):
+            best_model = local_best_model
+
+        max_acc = max(max_acc, max(accuracies))
+
+    print("Accuracy: ", max_acc * 100)
+    return best_model
 
 # Using the test data
+normal_evaluation()
+best_model = err_evaluation()
 
 # Make predictions for the next season using the best model
 # For simplicity, let’s assume you want to predict with the last model in the list
