@@ -7,6 +7,8 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
+from services.clean_data import *
+from services.eval import *
 # Set maximum rows to None (no truncation)
 pd.set_option('display.max_rows', None)
 
@@ -17,57 +19,8 @@ pd.set_option('display.max_columns', None)
 #pmerged_df = pd.merge(teams, coaches, on='tmID', how='left', validate="many_to_many")  # you can also use 'left', 'right', or 'outer' depending on your needsDIDteam_
 #print(pmerged_df.head())
 
-def error_eval(test, pred):
-    err= 0
-    i =0
-    su= 0
-    second_column = pred[:, 1]
-    scaled = (second_column * 8) / second_column.sum()
-    for index, value in test.items():
-        label = 0
-        if (value=='Y'): label=1
-        err+= abs(scaled[i] - label)
-        su += scaled[i]
-        i+=1
-    return err
-def clear_players(players):
-    players = players.drop(["pos", "deathDate", "birthDate"], axis=1)
-    players.rename(columns={"bioID": "playerID"}, inplace=True)
-    return players
 
-def clear_awards(awards):
-    awards = awards[(awards["award"] != "Kim Perrot Sportmanship") & (awards["award"] != "Kim Perrot Sportmanship Award")]
-    return awards
 
-def clear_teams(teams):
-    teams = teams.drop(["lgID", "divID", "seeded", "confID", "name", "arena" ], axis=1) #confID, arena?
-    
-    teams["firstRound"] = teams["firstRound"].replace({"W": 1, "L": 0})
-    teams["semis"] = teams["semis"].replace({"W": 1, "L": 0})
-    teams["finals"] = teams["finals"].replace({"W": 1, "L": 0})
-    
-    teams["firstRound"] = teams["firstRound"].fillna(0)
-    teams["semis"] = teams["semis"].fillna(0)
-    teams["finals"] = teams["finals"].fillna(0)
-    
-    return teams
-
-def clear_coaches(coaches):
-    coaches = coaches.drop(["lgID"], axis=1) #TODO: see year
-    coaches.rename(columns={'won': 'coach_won', 'lost':'coach_lost'}, inplace=True)
-    return coaches
-
-def clear_players_teams(players_teams):
-    players_teams = players_teams.drop(["lgID"], axis=1) #TODO: see year
-    return players_teams
-
-def clear_series_post(series_post):
-    series_post = series_post.drop(["lgIDWinner", "lgIDLoser"], axis=1) #TODO: see year
-    return  series_post
-
-def clear_teams_post(teams_post):
-    teams_post = teams_post.drop(["lgID"],axis=1)
-    return  teams_post
 
 awards_players = clear_awards(pd.read_csv('data/awards_players.csv'))
 coaches = clear_coaches(pd.read_csv('data/coaches.csv'))
@@ -135,6 +88,8 @@ df = pd.merge(df, teams_post, on=["tmID", 'year'], how='left')
 df.fillna(0, inplace=True)
 
 df['shot_accuracy'] = (df['o_fgm'] + df['o_ftm'] + df['o_3pm']) / (df['o_fga'] + df['o_fta'] + df['o_3pa'])
+df['defensive_accuracy'] = (df['d_fgm'] + df['d_ftm'] + df['d_3pm']) / (df['d_fga'] + df['d_fta'] + df['d_3pa'])
+df['win_rate'] = (df['won']) / (df['won'] + df['lost'])
 
 # df = pd.merge(df, coaches, on=["tmID", 'year'], how='left')
 
@@ -184,9 +139,9 @@ df['number_of_top_players'].fillna(0, inplace=True)
 # print(df.columns.tolist())
 
 features = [
-    "won", "lost", "playoff", "W", "L", "cumulative_awards", "number_of_top_players", "rank", "firstRound", "semis", "finals", 
-    "homeW", "homeL", "awayW", "awayL", "GP", "o_3pm", "o_3pa", "min", "confW", "confL", "attend",
-    "o_fgm", "o_fga", "o_ftm", "o_fta", "o_reb", "d_reb", "d_to", "d_stl", "d_blk","shot_accuracy"
+    "playoff", "W", "L", "cumulative_awards", "number_of_top_players", "rank", "firstRound", "semis", "finals", 
+    "homeW", "homeL", "awayW", "awayL", "GP", "min", "confW", "confL", "attend","defensive_accuracy",
+    "o_reb", "d_reb", "d_to", "d_stl", "d_blk","shot_accuracy","win_rate", "o_dreb","o_oreb","d_oreb","d_dreb"
 ]
 
 target = 'playoffNextYear'
@@ -213,69 +168,11 @@ models.append(('RFC', RandomForestClassifier()))
 models.append(('ABC', AdaBoostClassifier(algorithm='SAMME')))
 models.append(('GBC', GradientBoostingClassifier()))
 
-def err_evaluation():
-    max_acc = 12
-    best_model = None
-    for i in range(1):
-        accuracies = [12]    
-        local_best_model = None
-        # Train and evaluate each model
-        results = {}
-        for name, model in models:
-            # Train the model
-            model.fit(X_train, y_train)
-            y_pred = model.predict_proba(X_test)
-            accuracy = error_eval(y_test, y_pred)
-            
-            if(accuracy < min(accuracies)):
-                local_best_model = model
 
-            # Store the result
-            results[name] = accuracy
-            accuracies.append(accuracy)
-            print(f'{name} Error: {accuracy}')
-        
-        if(min(accuracies) < max_acc):
-            best_model = local_best_model
-
-        max_acc = min(max_acc, min(accuracies))
-
-    print("Error: ", max_acc)
-    return best_model
-
-def normal_evaluation():
-    max_acc = 0
-    best_model = None
-    for i in range(1):
-        accuracies = [0]    
-        local_best_model = None
-        # Train and evaluate each model
-        results = {}
-        for name, model in models:
-            # Train the model
-            model.fit(X_train, y_train)
-            y_pred = model.predict(X_test)
-            accuracy = accuracy_score(y_test,y_pred)
-            
-            if(accuracy > max(accuracies)):
-                local_best_model = model
-
-            # Store the result
-            results[name] = accuracy
-            accuracies.append(accuracy)
-            print(f'{name} Accuracy: {accuracy*100}%')
-        
-        if(max(accuracies) > max_acc):
-            best_model = local_best_model
-
-        max_acc = max(max_acc, max(accuracies))
-
-    print("Accuracy: ", max_acc * 100)
-    return best_model
 
 # Using the test data
-normal_evaluation()
-best_model = err_evaluation()
+normal_evaluation(models,X_train, X_test, y_train, y_test)
+best_model = err_evaluation(models,X_train, X_test, y_train, y_test)
 
 # Make predictions for the next season using the best model
 # For simplicity, let’s assume you want to predict with the last model in the list
