@@ -21,12 +21,13 @@ def error_eval(test, pred):
 def err_evaluation(models, X_train, X_test, y_train, y_test):
     max_acc = 12
     best_model = None
-    for i in range(1):
+    for name, model in models:
+
         accuracies = [12]    
         local_best_model = None
         # Train and evaluate each model
         results = {}
-        for name, model in models:
+        for i in range(10):
             # Train the model
             model.fit(X_train, y_train)
             y_pred = model.predict_proba(X_test)
@@ -51,12 +52,12 @@ def err_evaluation(models, X_train, X_test, y_train, y_test):
 def normal_evaluation(models,X_train, X_test, y_train, y_test):
     max_acc = 0
     best_model = None
-    for i in range(1):
+    for name, model in models:
         accuracies = [0]    
         local_best_model = None
         # Train and evaluate each model
         results = {}
-        for name, model in models:
+        for i in range(10):
             # Train the model
             model.fit(X_train, y_train)
             y_pred = model.predict(X_test)

@@ -9,6 +9,9 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
 from services.clean_data import *
 from services.eval import *
+from sklearn.preprocessing import LabelEncoder
+import tensorflow as tf
+from tensorflow.keras.callbacks import EarlyStopping
 # Set maximum rows to None (no truncation)
 pd.set_option('display.max_rows', None)
 
@@ -87,9 +90,9 @@ df['playoff'] = df['playoff'] == 'Y'
 df = pd.merge(df, teams_post, on=["tmID", 'year'], how='left')
 df.fillna(0, inplace=True)
 
-df['shot_accuracy'] = (df['o_fgm'] + df['o_ftm'] + df['o_3pm']) / (df['o_fga'] + df['o_fta'] + df['o_3pa'])
-df['defensive_accuracy'] = (df['d_fgm'] + df['d_ftm'] + df['d_3pm']) / (df['d_fga'] + df['d_fta'] + df['d_3pa'])
-df['win_rate'] = (df['won']) / (df['won'] + df['lost'])
+
+
+
 
 # df = pd.merge(df, coaches, on=["tmID", 'year'], how='left')
 
@@ -138,10 +141,26 @@ df['number_of_top_players'].fillna(0, inplace=True)
 # print(df.head(5))
 # print(df.columns.tolist())
 
+df['shot_accuracy'] = (df['o_fgm'] + df['o_ftm'] + df['o_3pm']) / (df['o_fga'] + df['o_fta'] + df['o_3pa'])
+df['defensive_accuracy'] = (df['d_fgm'] + df['d_ftm'] + df['d_3pm']) / (df['d_fga'] + df['d_fta'] + df['d_3pa'])
+df['win_rate'] = (df['won']) / (df['won'] + df['lost'])
+df["fg_effeciency"] = (df['o_fgm']  + df['o_3pm']*0.5 )/ (df['o_fga'])
+df["shoot_percentage"] = (df['o_pts']  )/ (2*(df['o_fga']+0.44*df['o_fta']))
+df["n_playoff"] = (
+    df.assign(playoff_numeric=df["playoff"])
+    .groupby("franchID")["playoff_numeric"]  # Group by team
+    .cumsum()  # Cumulative sum of playoff appearances
+)
+
+
+
+
+
 features = [
     "playoff", "W", "L", "cumulative_awards", "number_of_top_players", "rank", "firstRound", "semis", "finals", 
     "homeW", "homeL", "awayW", "awayL", "GP", "min", "confW", "confL", "attend","defensive_accuracy",
-    "o_reb", "d_reb", "d_to", "d_stl", "d_blk","shot_accuracy","win_rate", "o_dreb","o_oreb","d_oreb","d_dreb"
+    "o_reb", "d_reb", "d_to", "d_stl", "d_blk","shot_accuracy","win_rate", "o_dreb","o_oreb","d_oreb","d_dreb",
+    "fg_effeciency","shoot_percentage","n_playoff"
 ]
 
 target = 'playoffNextYear'
@@ -158,12 +177,12 @@ X_test = test_data[features]
 y_test = test_data[target]
 
 models = []
-models.append(('LR', LogisticRegression(max_iter=10000)))
+models.append(('LR', LogisticRegression(max_iter=100)))
 #models.append(('SVC', SVC()))
 models.append(('DTC', DecisionTreeClassifier()))
 models.append(('KNN', KNeighborsClassifier()))
 models.append(('GNB', GaussianNB()))
-models.append(('MLP', MLPClassifier(max_iter=6000)))
+models.append(('MLP', MLPClassifier(max_iter=600)))
 models.append(('RFC', RandomForestClassifier()))
 models.append(('ABC', AdaBoostClassifier(algorithm='SAMME')))
 models.append(('GBC', GradientBoostingClassifier()))
@@ -173,6 +192,33 @@ models.append(('GBC', GradientBoostingClassifier()))
 # Using the test data
 normal_evaluation(models,X_train, X_test, y_train, y_test)
 best_model = err_evaluation(models,X_train, X_test, y_train, y_test)
+
+print(X_train.shape)
+
+
+"""
+label_encoder = LabelEncoder()
+y_train = label_encoder.fit_transform(y_train)
+y_test = label_encoder.transform(y_test)
+
+
+early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
+
+model = tf.keras.models.Sequential([
+  tf.keras.layers.Flatten(input_shape=(30, )),
+  tf.keras.layers.Dense(128, activation='relu'),
+  tf.keras.layers.Dropout(0.2),
+  tf.keras.layers.Dense(10, activation='softmax')
+])
+
+model.compile(optimizer='adam',
+  loss='sparse_categorical_crossentropy',
+  metrics=['accuracy'])
+
+model.fit(X_train, y_train, epochs=100,callbacks=[early_stopping])
+model.evaluate(X_test, y_test)
+
+"""
 
 # Make predictions for the next season using the best model
 # For simplicity, let’s assume you want to predict with the last model in the list
