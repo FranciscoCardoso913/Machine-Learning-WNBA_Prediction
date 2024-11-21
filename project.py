@@ -141,7 +141,7 @@ df['number_of_top_players'].fillna(0, inplace=True)
 # print(df.head(5))
 # print(df.columns.tolist())
 
-df['shot_accuracy'] = (df['o_fgm'] + df['o_ftm'] + df['o_3pm']) / (df['o_fga'] + df['o_fta'] + df['o_3pa'])
+df['shot_accuracy'] = (df['o_fgm'] + df['o_3pm']) / (df['o_fga']+ df['o_3pa'])
 df['defensive_accuracy'] = (df['d_fgm'] + df['d_ftm'] + df['d_3pm']) / (df['d_fga'] + df['d_fta'] + df['d_3pa'])
 df['win_rate'] = (df['won']) / (df['won'] + df['lost'])
 df["fg_effeciency"] = (df['o_fgm']  + df['o_3pm']*0.5 )/ (df['o_fga'])
@@ -177,15 +177,102 @@ X_test = test_data[features]
 y_test = test_data[target]
 
 models = []
-models.append(('LR', LogisticRegression(max_iter=100)))
-#models.append(('SVC', SVC()))
-models.append(('DTC', DecisionTreeClassifier()))
-models.append(('KNN', KNeighborsClassifier()))
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.neural_network import MLPClassifier
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier, GradientBoostingClassifier
+from sklearn.svm import SVC
+
+models = []
+
+# Logistic Regression with additional parameters
+models.append((
+    'LR',
+    LogisticRegression(
+        penalty='l2',           # Regularization type
+        C=1.0,                  # Regularization strength
+        solver='lbfgs',         # Solver
+        max_iter=200,           # Increase iterations if convergence issues
+        random_state=42         # Seed for reproducibility
+    )
+))
+
+# Decision Tree Classifier
+models.append((
+    'DTC',
+    DecisionTreeClassifier(
+        criterion='gini',       # Split criterion: 'gini' or 'entropy'
+        max_depth=10,           # Limit depth of the tree
+        min_samples_split=5,    # Minimum samples to split a node
+        min_samples_leaf=2,     # Minimum samples in a leaf
+        random_state=42
+    )
+))
+
+# K-Nearest Neighbors
+models.append((
+    'KNN',
+    KNeighborsClassifier(
+        n_neighbors=5,          # Number of neighbors
+        weights='uniform',      # Weighting function: 'uniform' or 'distance'
+        algorithm='auto'        # Algorithm for neighbor search
+    )
+))
+
+# Gaussian Naive Bayes (no additional hyperparameters needed)
 models.append(('GNB', GaussianNB()))
-models.append(('MLP', MLPClassifier(max_iter=600)))
-models.append(('RFC', RandomForestClassifier()))
-models.append(('ABC', AdaBoostClassifier(algorithm='SAMME')))
-models.append(('GBC', GradientBoostingClassifier()))
+
+# Multi-Layer Perceptron Classifier
+models.append((
+    'MLP',
+    MLPClassifier(
+        hidden_layer_sizes=(100, 50),  # Two layers with 100 and 50 neurons
+        activation='relu',            # Activation function
+        solver='adam',                # Optimization algorithm
+        alpha=0.0001,                 # L2 penalty (regularization term)
+        max_iter=600,                 # Maximum iterations
+        random_state=42
+    )
+))
+
+# Random Forest Classifier
+models.append((
+    'RFC',
+    RandomForestClassifier(
+        n_estimators=100,         # Number of trees in the forest
+        max_depth=10,             # Maximum depth of the tree
+        min_samples_split=5,      # Minimum samples to split a node
+        min_samples_leaf=2,       # Minimum samples in a leaf
+        random_state=42
+    )
+))
+
+# AdaBoost Classifier
+models.append((
+    'ABC',
+    AdaBoostClassifier(
+        n_estimators=50,          # Number of estimators
+        learning_rate=1.0,        # Learning rate
+        algorithm='SAMME.R',      # Algorithm type: 'SAMME' or 'SAMME.R'
+        random_state=42
+    )
+))
+
+# Gradient Boosting Classifier
+models.append((
+    'GBC',
+    GradientBoostingClassifier(
+        n_estimators=100,         # Number of boosting stages
+        learning_rate=0.1,        # Learning rate
+        max_depth=3,              # Maximum depth of individual estimators
+        min_samples_split=5,      # Minimum samples to split a node
+        min_samples_leaf=2,       # Minimum samples in a leaf
+        random_state=42
+    )
+))
+
 
 
 
