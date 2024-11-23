@@ -163,7 +163,7 @@ y_train = train_data[target]
 X_test = test_data[features]
 y_test = test_data[target]
 
-models = getting_models()
+models = getting_models(X_train, y_train, X_test, y_test, False)
 
 
 # Using the test data

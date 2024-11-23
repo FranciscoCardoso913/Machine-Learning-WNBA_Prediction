@@ -7,8 +7,9 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
 import pandas as pd
+from . import optimizer
 
-def getting_models():
+def getting_models(X_train, y_train, X_test, y_test, optimize=False):
     models = []
 
     # Logistic Regression with additional parameters
@@ -23,17 +24,32 @@ def getting_models():
         )
     ))
 
-    # Decision Tree Classifier
-    models.append((
-        'DTC',
-        DecisionTreeClassifier(
-            criterion='gini',       # Split criterion: 'gini' or 'entropy'
-            max_depth=10,           # Limit depth of the tree
-            min_samples_split=5,    # Minimum samples to split a node
-            min_samples_leaf=2,     # Minimum samples in a leaf
-            random_state=42
-        )
-    ))
+    if(optimize):
+        dtc_params = optimizer.optimize_dtc(X_train, y_train, X_test, y_test)
+
+        print("DTC PARAMS ARE: ", dtc_params)
+
+        models.append((
+            'DTC',
+            DecisionTreeClassifier(
+                criterion=dtc_params["criterion"],
+                max_depth=dtc_params["max_depth"],
+                min_samples_split=dtc_params["min_samples_split"],
+                min_samples_leaf=dtc_params["min_samples_leaf"],
+                random_state=dtc_params["random_state"],
+                #min_impurity_decrease=dtc_params["min_impurity_decrease"],
+                splitter=dtc_params["splitter"]
+            )
+        ))
+    else:
+        models.append(('DTC', DecisionTreeClassifier(
+            criterion='gini',
+            max_depth=8,
+            min_samples_split=4,
+            min_samples_leaf=3,
+            random_state=82,
+            splitter='best'
+        )))
 
     # K-Nearest Neighbors
     models.append((
@@ -49,9 +65,14 @@ def getting_models():
     models.append(('GNB', GaussianNB()))
 
     # Multi-Layer Perceptron Classifier
+    #mlp_params = optimizer.optimize_mlp(X_train, y_train, X_test, y_test)
     models.append((
         'MLP',
         MLPClassifier(
+            #hidden_layer_sizes=mlp_params["hidden_layer_sizes"],
+            #alpha=mlp_params["alpha"],
+            #activation=mlp_params["activation"],
+            #solver=mlp_params["solver"],
             hidden_layer_sizes=(100, 50),  # Two layers with 100 and 50 neurons
             activation='relu',            # Activation function
             solver='adam',                # Optimization algorithm
@@ -62,9 +83,18 @@ def getting_models():
     ))
 
     # Random Forest Classifier
+    #rc_params = optimizer.optimize_random_forest(X_train, y_train, X_test, y_test)
     models.append((
         'RFC',
         RandomForestClassifier(
+        #     n_estimators=rc_params["n_estimators"],
+        #     max_depth=rc_params["max_depth"],
+        #     min_samples_split=rc_params["min_samples_split"],
+        #     min_samples_leaf=rc_params["min_samples_leaf"],
+        #     max_features=rc_params["max_features"],
+        #     random_state=rc_params["random_state"],
+        #     n_features=rc_params["n_features"]
+        
             n_estimators=100,         # Number of trees in the forest
             max_depth=10,             # Maximum depth of the tree
             min_samples_split=5,      # Minimum samples to split a node
