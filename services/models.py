@@ -66,6 +66,9 @@ def getting_models(X_train, y_train, X_test, y_test, optimize=False):
 
     # Multi-Layer Perceptron Classifier
     #mlp_params = optimizer.optimize_mlp(X_train, y_train, X_test, y_test)
+
+    #print("MLP PARAMS ARE: ", mlp_params)
+
     models.append((
         'MLP',
         MLPClassifier(
@@ -73,27 +76,30 @@ def getting_models(X_train, y_train, X_test, y_test, optimize=False):
             #alpha=mlp_params["alpha"],
             #activation=mlp_params["activation"],
             #solver=mlp_params["solver"],
-            hidden_layer_sizes=(100, 50),  # Two layers with 100 and 50 neurons
+            hidden_layer_sizes=696,  # Two layers with 100 and 50 neurons
             activation='relu',            # Activation function
-            solver='adam',                # Optimization algorithm
-            alpha=0.0001,                 # L2 penalty (regularization term)
-            max_iter=600,                 # Maximum iterations
-            random_state=42
+            solver='lbfgs',                # Optimization algorithm
+            alpha=0.1,                 # L2 penalty (regularization term)
+            max_iter=3877,                 # Maximum iterations
+            #random_state=42
         )
     ))
 
     # Random Forest Classifier
     #rc_params = optimizer.optimize_random_forest(X_train, y_train, X_test, y_test)
+
+    #print("RC PARAMS ARE: ", rc_params)
+
     models.append((
         'RFC',
         RandomForestClassifier(
-        #     n_estimators=rc_params["n_estimators"],
-        #     max_depth=rc_params["max_depth"],
-        #     min_samples_split=rc_params["min_samples_split"],
-        #     min_samples_leaf=rc_params["min_samples_leaf"],
-        #     max_features=rc_params["max_features"],
-        #     random_state=rc_params["random_state"],
-        #     n_features=rc_params["n_features"]
+            # n_estimators=rc_params["n_estimators"],
+            # max_depth=rc_params["max_depth"],
+            # min_samples_split=rc_params["min_samples_split"],
+            ## min_samples_leaf=rc_params["min_samples_leaf"],
+            # max_features=rc_params["max_features"],
+            # random_state=rc_params["random_state"],
+            # n_features=rc_params["n_features"]
         
             n_estimators=100,         # Number of trees in the forest
             max_depth=10,             # Maximum depth of the tree

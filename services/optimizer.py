@@ -44,10 +44,10 @@ class sklearn.tree.DecisionTreeClassifier(*, criterion='gini', splitter='best', 
 def optimize_random_forest(X_train, y_train, X_test, y_test):
     def objective(trial):
         param_grid = {
-            'n_estimators': trial.suggest_int('n_estimators', 10, 100),
-            'max_depth': trial.suggest_int('max_depth', 2, 50),
-            'min_samples_split': trial.suggest_int('min_samples_split', 2, 10),
-            'min_samples_leaf': trial.suggest_int('min_samples_leaf', 1, 10),
+            'n_estimators': trial.suggest_int('n_estimators', 10, 1000),
+            'max_depth': trial.suggest_int('max_depth', 2, 1000),
+            'min_samples_split': trial.suggest_int('min_samples_split', 2, 500),
+            'min_samples_leaf': trial.suggest_int('min_samples_leaf', 1, 1000),
             'max_features': trial.suggest_categorical('max_features', ['sqrt', 'log2', None]),
             'n_features': trial.suggest_int('n_features', 1, 30),
             'random_state': trial.suggest_int('random_state', 1, 100000),
@@ -105,16 +105,18 @@ def optimize_mlp(X_train, y_train, X_test, y_test):
     def objective(trial):
         param_grid = {
             # Instead of trial.suggest_int ,we need a tuple with ints
-            'hidden_layer_sizes': (trial.suggest_int('hidden_layer_sizes', 10, 100),trial.suggest_int('hidden_layer_sizes', 10, 100)),
+            'hidden_layer_sizes': (trial.suggest_int('hidden_layer_sizes', 10, 1000),trial.suggest_int('hidden_layer_sizes', 10, 1000)),
             'alpha': trial.suggest_discrete_uniform('alpha', 0.1, 1.0, 0.1),
             'activation': trial.suggest_categorical('activation', ['tanh', 'relu']),
             'solver': trial.suggest_categorical('solver', ['lbfgs', 'sgd', 'adam']),
+            'max_iter': trial.suggest_int('max_iter', 100, 5000),
         }
         model = MLPClassifier(
             hidden_layer_sizes=param_grid['hidden_layer_sizes'],
             alpha=param_grid['alpha'],
             activation=param_grid['activation'],
             solver=param_grid['solver'],
+            max_iter=param_grid['max_iter']
         )
 
         model.fit(X_train, y_train)
