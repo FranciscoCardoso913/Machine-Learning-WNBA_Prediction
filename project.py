@@ -5,6 +5,9 @@ from services.models import *
 from sklearn.preprocessing import LabelEncoder
 import tensorflow as tf
 from tensorflow.keras.callbacks import EarlyStopping
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
 # Set maximum rows to None (no truncation)
 pd.set_option('display.max_rows', None)
 
@@ -27,6 +30,8 @@ df = clear_teams(pd.read_csv('data/teams.csv'))
 print(f"Number of rows where year == 9: {(df['year'] == 9).sum()}\n\n")
 #merged_teams = pd.merge(merged_teams, series_post, on=["tmID", 'year'])
 #print(merged_teams)
+
+df_numeric = df.select_dtypes(include=[np.number])
 
 # awards_count = awards_players.groupby('playerID').size().reset_index(name='awards_count')
 # #print(awards_count)
@@ -75,9 +80,8 @@ df = df.sort_values(by=['franchID', 'year'])
 df['playoffNextYear'] = df['playoff'].shift(-1)
 df.loc[df['franchID']!= df['franchID'].shift(-1),'playoffNextYear'] = None
 df.dropna(subset= ['playoffNextYear'], inplace=True)
-print(f"\n\nNumber of rows where year == 9: {(df['year'] == 9).sum()}\n\n")
 
-df['playoff'] = df['playoff'] == 'Y'
+df['playoff'] = (df['playoff'] == 'Y').astype(int)
 df = pd.merge(df, teams_post, on=["tmID", 'year'], how='left')
 df.fillna(0, inplace=True)
 
@@ -143,6 +147,8 @@ df["n_playoff"] = (
     .cumsum()  # Cumulative sum of playoff appearances
 )
 
+df['WR_diff'] = df['win_rate'].shift(-2).fillna(0) - df['win_rate'].shift(-1).fillna(0)
+
 features = [
     "playoff", "W", "L", "cumulative_awards", "number_of_top_players", "rank", "firstRound", "semis", "finals", 
     "homeW", "homeL", "awayW", "awayL", "GP", "min", "confW", "confL", "attend","defensive_accuracy",
@@ -151,6 +157,53 @@ features = [
 ]
 
 target = 'playoffNextYear'
+
+df_numeric = df[features + [target]].copy()
+
+df_numeric['playoffNextYear'] = (df['playoffNextYear'] == 'Y').astype(int)
+
+df_numeric['playoffNextYear'] = (df['playoffNextYear'] == 'Y').astype(int)
+
+corr_matrix = df_numeric.corr()
+
+# View correlations with the target
+corr_with_target = corr_matrix['playoffNextYear'].sort_values(ascending=False)
+
+print("Correlations with playoffNextYear:")
+print(corr_with_target)
+
+threshold = 0.0  # Adjust as needed
+important_features = corr_with_target[abs(corr_with_target) > threshold].index
+
+important_corr_matrix = df_numeric[important_features].corr()
+
+# Full correlation matrix heatmap
+plt.figure(figsize=(10, 8))  # Adjust size as needed
+plt.title("Features Correlation Heatmap")
+sns.heatmap(
+    important_corr_matrix,
+    cmap='coolwarm',
+    annot=True,
+    center=0,
+    vmin=-1,
+    vmax=1
+)
+plt.show()
+
+# Filter the correlations to include only those above the threshold (absolute value)
+important_corr_with_target = corr_with_target[abs(corr_with_target) > threshold]
+
+# Exclude 'playoffNextYear' from the correlations (as it's the target)
+important_corr_with_target = important_corr_with_target.drop('playoffNextYear')
+
+# Convert to DataFrame for heatmap plotting
+important_corr_with_target_df = important_corr_with_target.to_frame()
+
+# Plotting the heatmap
+plt.figure(figsize=(6, 8))
+sns.heatmap(important_corr_with_target_df, annot=True, cmap='coolwarm', cbar=False, center=0, vmin=-1, vmax=1)
+plt.title('Correlations with PlayoffNextYear')
+plt.show()
 
 # Splitting data into training (earlier seasons) and testing (recent seasons)
 # Assuming year 5 is an arbitrary cutoff for training vs test data
