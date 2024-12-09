@@ -75,16 +75,16 @@ df = df.merge(team_awards_by_year[['tmID', 'year', 'cumulative_team_awards']], o
 df['cumulative_team_awards'].fillna(0, inplace=True)
 
 
+df.loc[df['year'] == 11, 'playoff'] = 0 # This value is only for merging, not for testing
 df = df.sort_values(by=['franchID', 'year'])
 df['playoffNextYear'] = df['playoff'].shift(-1)
 df.loc[df['franchID']!= df['franchID'].shift(-1),'playoffNextYear'] = None
-# df.dropna(subset= ['playoffNextYear'], inplace=True)
+df.dropna(subset= ['playoffNextYear'], inplace=True)
 
 df['playoff'] = df['playoff'] == 'Y'
 df['playoffNextYear'] = df['playoffNextYear'] == 'Y'
 df = pd.merge(df, teams_post, on=["tmID", 'year'], how='left')
 df.fillna(0, inplace=True)
-df['playoffNextYear'] = df['playoffNextYear'].astype(int)
 
 
 
@@ -207,10 +207,10 @@ model.evaluate(X_test, y_test)
 next_season = df[df.year == 10]  # Replace '6' with the next season
 X_next_season = next_season[features]
 
-next_season_predictions = best_model.predict(X_next_season)
-# next_season_predictions = best_model.predict_proba(X_next_season)
-next_season['predicted_playoff'] = next_season_predictions
-# next_season['predicted_playoff'] = next_season_predictions[:,1]
-
+# next_season_predictions = best_model.predict(X_next_season)
+next_season_predictions = best_model.predict_proba(X_next_season)
+# next_season['predicted_playoff'] = next_season_predictions
+next_season['predicted_playoff'] = next_season_predictions[:,1]
+next_season['next_year'] = next_season['year'] + 1
 # Output predictions for the next season
-print(next_season[['franchID', 'year', 'predicted_playoff']])
+print(next_season[['franchID', 'next_year', 'predicted_playoff']])
