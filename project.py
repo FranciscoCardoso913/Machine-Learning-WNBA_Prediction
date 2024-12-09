@@ -17,14 +17,19 @@ pd.set_option('display.max_columns', None)
 
 
 awards_players = clear_awards(pd.read_csv('data/awards_players.csv'))
-coaches = clear_coaches(pd.read_csv('data/coaches.csv'))
-players_teams = clear_players_teams(pd.read_csv('data/players_teams.csv'))
+coaches = pd.read_csv('data/coaches.csv')
+coaches_s11 = pd.read_csv('data/s11/coaches.csv')
+coaches = clear_coaches(pd.concat([coaches, coaches_s11]))
+players_teams = pd.read_csv('data/players_teams.csv')
+players_teams_s11 = pd.read_csv('data/s11/players_teams.csv')
+players_teams = clear_players_teams(pd.concat([players_teams, players_teams_s11]))
 players = clear_players(pd.read_csv('data/players.csv'))
 series_post = clear_series_post(pd.read_csv('data/series_post.csv'))
 teams_post = clear_teams_post(pd.read_csv('data/teams_post.csv'))
-df = clear_teams(pd.read_csv('data/teams.csv'))
+df = pd.read_csv('data/teams.csv')
+df_s11 = pd.read_csv('data/s11/teams.csv')
+df = clear_teams(pd.concat([df, df_s11]))
 
-print(f"Number of rows where year == 9: {(df['year'] == 9).sum()}\n\n")
 #merged_teams = pd.merge(merged_teams, series_post, on=["tmID", 'year'])
 #print(merged_teams)
 
@@ -50,8 +55,6 @@ player_awards_by_year = awards_players.groupby(['playerID', 'year']).size().rese
 # Step 2: Apply a cumulative sum to get the total awards by year for each player
 player_awards_by_year['cumulative_awards'] = player_awards_by_year.groupby('playerID')['awards_count'].cumsum()
 
-# Example output columns: ['playerID', 'yearID', 'awards_count', 'cumulative_awards']
-
 # Step 3: Merge cumulative player awards with team_players data
 team_players_awards = pd.merge(players_teams, player_awards_by_year[['playerID', 'year', 'cumulative_awards']],
                                on=['playerID', 'year'], how='left')
@@ -62,25 +65,26 @@ team_players_awards['cumulative_awards'].fillna(0, inplace=True)
 # Step 4: Group by team and year to sum the cumulative awards for each team
 team_awards_by_year = team_players_awards.groupby(['tmID', 'year'])['cumulative_awards'].sum().reset_index()
 
-# Example output columns: ['tmID', 'yearID', 'cumulative_awards']
+# Step 5: Calculate the cumulative team awards over time (for each year, the sum of all previous years)
+team_awards_by_year['cumulative_team_awards'] = team_awards_by_year.groupby('tmID')['cumulative_awards'].cumsum()
 
-# Step 5: Merge cumulative team awards into your main dataframe
-df = df.merge(team_awards_by_year, on=['tmID', 'year'], how='left')
-print(f"\n\nNumber of rows where year == 9: {(df['year'] == 9).sum()}\n\n")
+# Step 6: Merge cumulative team awards into your main dataframe
+df = df.merge(team_awards_by_year[['tmID', 'year', 'cumulative_team_awards']], on=['tmID', 'year'], how='left')
 
-# Fill any missing awards with 0
-df['cumulative_awards'].fillna(0, inplace=True)
+# Fill any missing cumulative awards for teams with no data for previous years
+df['cumulative_team_awards'].fillna(0, inplace=True)
+
 
 df = df.sort_values(by=['franchID', 'year'])
 df['playoffNextYear'] = df['playoff'].shift(-1)
 df.loc[df['franchID']!= df['franchID'].shift(-1),'playoffNextYear'] = None
-df.dropna(subset= ['playoffNextYear'], inplace=True)
-print(f"\n\nNumber of rows where year == 9: {(df['year'] == 9).sum()}\n\n")
+# df.dropna(subset= ['playoffNextYear'], inplace=True)
 
 df['playoff'] = df['playoff'] == 'Y'
+df['playoffNextYear'] = df['playoffNextYear'] == 'Y'
 df = pd.merge(df, teams_post, on=["tmID", 'year'], how='left')
 df.fillna(0, inplace=True)
-
+df['playoffNextYear'] = df['playoffNextYear'].astype(int)
 
 
 
@@ -143,26 +147,26 @@ df["n_playoff"] = (
     .cumsum()  # Cumulative sum of playoff appearances
 )
 
+
 features = [
-    "playoff", "W", "L", "cumulative_awards", "number_of_top_players", "rank", "firstRound", "semis", "finals", 
+    "playoff", "W", "L", "cumulative_team_awards", "number_of_top_players", "rank", "firstRound", "semis", "finals",
     "homeW", "homeL", "awayW", "awayL", "GP", "min", "confW", "confL", "attend","defensive_accuracy",
     "o_reb", "d_reb", "d_to", "d_stl", "d_blk","shot_accuracy","win_rate", "o_dreb","o_oreb","d_oreb","d_dreb",
     "fg_effeciency","shoot_percentage","n_playoff"
 ]
 
 target = 'playoffNextYear'
-
+train_test_split = 8
 # Splitting data into training (earlier seasons) and testing (recent seasons)
 # Assuming year 5 is an arbitrary cutoff for training vs test data
-train_data = df[df.year <= 8].copy()  # Earlier seasons
-test_data = df[df.year > 8].copy()    # Recent seasons
+train_data = df[df.year <= train_test_split].copy() # Earlier seasons
+test_data = df[(df['year'] >= train_test_split) & (df['year'] < 10)].copy() # Recent seasons
 
 X_train = train_data[features]
 y_train = train_data[target]
 
 X_test = test_data[features]
 y_test = test_data[target]
-
 models = getting_models(X_train, y_train, X_test, y_test, False)
 
 
@@ -200,7 +204,7 @@ model.evaluate(X_test, y_test)
 # Make predictions for the next season using the best model
 # For simplicity, let’s assume you want to predict with the last model in the list
 # best_model = models[-1][1]  # Example: MLPClassifier
-next_season = test_data[test_data.year == 9]  # Replace '6' with the next season
+next_season = df[df.year == 10]  # Replace '6' with the next season
 X_next_season = next_season[features]
 
 next_season_predictions = best_model.predict(X_next_season)
