@@ -113,8 +113,6 @@ team_players_awards = team_players_awards.groupby(['tmID', 'year'], as_index=Fal
 # Fill missing values (for players/coaches with no awards) with 0
 team_players_awards['cumulative_awards'].fillna(0, inplace=True)
 
-print(team_players_awards[['tmID','year','cumulative_awards']].sort_values(by=['tmID', 'year']))
-
 # Step 11: Merge the result with the main team dataframe (df)
 df = df.merge(team_players_awards[['tmID', 'year', 'cumulative_awards']], on=['tmID', 'year'], how='left')
 
@@ -162,7 +160,7 @@ df["fg_effeciency"] = (df['o_fgm']  + df['o_3pm']*0.5 )/ (df['o_fga'])
 df["shoot_percentage"] = (df['o_pts']  )/ (2*(df['o_fga']+0.44*df['o_fta']))
 
 # PLAYOFF NEXT YEAR
-df['playoff'].fillna(0, inplace=True)
+df.loc[df['year'] == 11, 'playoff'] = 0
 df = df.sort_values(by=['franchID', 'year'])
 df['playoffNextYear'] = df['playoff'].shift(-1)
 df.loc[df['franchID']!= df['franchID'].shift(-1),'playoffNextYear'] = None
@@ -172,6 +170,7 @@ df['playoff'] = df['playoff'] == 'Y'
 df['playoffNextYear'] = df['playoffNextYear'] == 'Y'
 df = pd.merge(df, teams_post, on=["tmID", 'year'], how='left')
 df.fillna(0, inplace=True)
+df = df.drop_duplicates(subset=['tmID', 'year'])
 
 df["n_playoff"] = (
     df.assign(playoff_numeric=df["playoff"])
