@@ -139,6 +139,33 @@ df = pd.merge(df, future_coaches_stats, on=['tmID', 'year'], how='left')
 # Step 5: Handle missing values (teams with no coach yet assigned in future years)
 df['cumulative_WR'].fillna(0, inplace=True)
 
+# Step 6: Separate for first and second coaches
+# For teams with a second coach (stint == 2), we'll create secondCoachWR
+first_coach_wr = coaches[coaches['stint'] == 1][['year', 'tmID', 'cumulative_WR']].rename(columns={'cumulative_WR': 'firstCoachWR'})
+second_coach_wr = coaches[coaches['stint'] == 2][['year', 'tmID', 'cumulative_WR']].rename(columns={'cumulative_WR': 'secondCoachWR'})
+
+# For teams where the same coach is assigned to both positions (stint == 0), we'll use the same WR
+same_coach_wr = coaches[coaches['stint'] == 0][['year', 'tmID', 'cumulative_WR']]
+same_coach_wr['firstCoachWR'] = same_coach_wr['cumulative_WR']
+same_coach_wr['secondCoachWR'] = same_coach_wr['cumulative_WR']
+same_coach_wr = same_coach_wr[['year', 'tmID', 'firstCoachWR', 'secondCoachWR']]
+
+# Combine the coach data for first and second coach WR
+combined_coach_wr = pd.concat([first_coach_wr, second_coach_wr, same_coach_wr], axis=0).drop_duplicates(subset=['year', 'tmID'])
+
+# Step 7: Merge combined coach WR data into the teams DataFrame (df)
+df = pd.merge(df, combined_coach_wr, on=['tmID', 'year'], how='left')
+
+# Step 8: Fill missing values with 0 where no coach data exists
+df['firstCoachWR'].fillna(0, inplace=True)
+df['secondCoachWR'].fillna(0, inplace=True)
+
+# Step 9: Clean up the data to make sure no duplicate team-year pairs exist
+df = df.drop_duplicates(subset=['tmID', 'year'])
+
+# Step 10: Final sort and display (optional for cleaner output)
+df.sort_values(by=['franchID', 'year'], inplace=True)
+
 # TOP PLAYERS
 all_time_best_players = players_teams.groupby('playerID')["points"].sum().reset_index().sort_values(by=['points'], ascending=False)
 top_all_time_best_players = all_time_best_players.merge(players_teams, on=['playerID']).groupby('playerID')
@@ -182,11 +209,11 @@ features = [
     "playoff", "W", "L", "cumulative_awards", "number_of_top_players", "rank", "firstRound", "semis", "finals",
     "homeW", "homeL", "awayW", "awayL", "GP", "min", "confW", "confL", "attend","defensive_accuracy",
     "o_reb", "d_reb", "d_to", "d_stl", "d_blk","shot_accuracy","win_rate", "o_dreb","o_oreb","d_oreb","d_dreb",
-    "fg_effeciency","shoot_percentage"
+    "fg_effeciency","shoot_percentage", "firstCoachWR", "secondCoachWR"
 ]
 
 target = 'playoffNextYear'
-train_test_split = 8
+train_test_split = 7
 # Splitting data into training (earlier seasons) and testing (recent seasons)
 # Assuming year 5 is an arbitrary cutoff for training vs test data
 train_data = df[df.year <= train_test_split].copy() # Earlier seasons
@@ -243,4 +270,4 @@ next_season_predictions = best_model.predict_proba(X_next_season)
 next_season['predicted_playoff'] = next_season_predictions[:,1]
 next_season['next_year'] = next_season['year'] + 1
 # Output predictions for the next season
-print(next_season[['franchID', 'next_year', 'predicted_playoff']])
+print(next_season[['tmID', 'next_year', 'predicted_playoff']])
