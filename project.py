@@ -5,6 +5,9 @@ from services.models import *
 from sklearn.preprocessing import LabelEncoder
 import tensorflow as tf
 from tensorflow.keras.callbacks import EarlyStopping
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.preprocessing import StandardScaler
 # Set maximum rows to None (no truncation)
 pd.set_option('display.max_rows', None)
 
@@ -73,7 +76,7 @@ coach_awards_by_year.rename(columns={'playerID': 'coachID'}, inplace=True)
 # Combine both player and coach awards
 combined_awards_by_year = pd.concat([player_awards_by_year, coach_awards_by_year])
 
-# --- Step 7: Merging with the next year's stats (for players and coaches) ---
+# Step 7: Merging with the next year's stats (for players and coaches)
 # Shift players_teams data to associate players of year X+1 with teams in year X
 players_teams_next_year = players_teams.copy()
 players_teams_next_year['year'] -= 1  # Shift years back to merge with current awards
@@ -100,7 +103,7 @@ team_coaches_awards = pd.merge(
     how='left'
 )
 
-# --- Combine and Aggregate ---
+# Step 8: Combine and Aggregate
 # Standardize column names to allow concatenation
 team_coaches_awards = team_coaches_awards.rename(columns={'coachID': 'playerID'})  # Treat coaches as players for processing
 
@@ -113,10 +116,10 @@ team_players_awards = team_players_awards.groupby(['tmID', 'year'], as_index=Fal
 # Fill missing values (for players/coaches with no awards) with 0
 team_players_awards['cumulative_awards'].fillna(0, inplace=True)
 
-# Step 11: Merge the result with the main team dataframe (df)
+# Step 9: Merge the result with the main team dataframe (df)
 df = df.merge(team_players_awards[['tmID', 'year', 'cumulative_awards']], on=['tmID', 'year'], how='left')
 
-# Step 12: Fill missing values for teams that don't have any data for the next year
+# Fill missing values for teams that don't have any data for the next year
 df['cumulative_awards'].fillna(0, inplace=True)
 
 # COACHES
@@ -185,8 +188,16 @@ df['defensive_accuracy'] = (df['d_fgm'] + df['d_ftm'] + df['d_3pm']) / (df['d_fg
 df['win_rate'] = (df['won']) / (df['won'] + df['lost'])
 df["fg_effeciency"] = (df['o_fgm']  + df['o_3pm']*0.5 )/ (df['o_fga'])
 df["shoot_percentage"] = (df['o_pts']  )/ (2*(df['o_fga']+0.44*df['o_fta']))
+df.loc[df['year'] == 11, 'playoff'] = 'N'
+df["n_playoff"] = (
+    df.assign(playoff_numeric=(df["playoff"] == 'Y'))
+    .groupby("franchID")["playoff_numeric"]  # Group by team
+    .cumsum()  # Cumulative sum of playoff appearances
+)
+
 
 # PLAYOFF NEXT YEAR
+df = df.drop_duplicates(subset=['tmID', 'year'])
 df.loc[df['year'] == 11, 'playoff'] = 0
 df = df.sort_values(by=['franchID', 'year'])
 df['playoffNextYear'] = df['playoff'].shift(-1)
@@ -197,13 +208,8 @@ df['playoff'] = df['playoff'] == 'Y'
 df['playoffNextYear'] = df['playoffNextYear'] == 'Y'
 df = pd.merge(df, teams_post, on=["tmID", 'year'], how='left')
 df.fillna(0, inplace=True)
-df = df.drop_duplicates(subset=['tmID', 'year'])
 
-df["n_playoff"] = (
-    df.assign(playoff_numeric=df["playoff"])
-    .groupby("franchID")["playoff_numeric"]  # Group by team
-    .cumsum()  # Cumulative sum of playoff appearances
-)
+
 
 features = [
     "playoff", "W", "L", "cumulative_awards", "number_of_top_players", "rank", "firstRound", "semis", "finals",
@@ -213,6 +219,38 @@ features = [
 ]
 
 target = 'playoffNextYear'
+
+# PLOTS
+# Step 1: Select the relevant features and target
+selected_columns = features + [target]
+
+# Create a subset of the dataframe with the selected features
+df_subset = df[selected_columns]
+
+# Step 2: Normalize the features (Standardization)
+scaler = StandardScaler()
+
+# Normalize all features (excluding the target)
+df_subset[features] = scaler.fit_transform(df_subset[features])
+
+# Step 3: Calculate the correlation matrix
+correlation_matrix = df_subset.corr()
+
+# Step 4: Extract only the correlation with the target
+correlation_with_target = correlation_matrix[target].drop(target)  # Drop the target from itself
+
+# Step 5: Create a heatmap
+plt.figure(figsize=(8, 6))
+sns.heatmap(correlation_with_target.to_frame(), annot=True, cmap='coolwarm', fmt='.2f', cbar=True, vmin=-1, vmax=1)
+
+# Step 6: Add labels and title
+plt.title(f'Normalized Correlation Heatmap of Features with {target}', fontsize=16)
+plt.xticks(rotation=45, ha='right')
+
+# Step 7: Display the plot
+plt.tight_layout()
+plt.show()
+
 train_test_split = 7
 # Splitting data into training (earlier seasons) and testing (recent seasons)
 # Assuming year 5 is an arbitrary cutoff for training vs test data
