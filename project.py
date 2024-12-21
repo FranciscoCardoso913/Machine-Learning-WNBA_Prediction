@@ -13,10 +13,6 @@ pd.set_option('display.max_rows', None)
 
 # Set maximum columns to None (no truncation)
 pd.set_option('display.max_columns', None)
-# teams_merged = pd.merge(teams_data, teams_post_data, on=['tmID', 'year'], how='left')
-
-#pmerged_df = pd.merge(teams, coaches, on='tmID', how='left', validate="many_to_many")  # you can also use 'left', 'right', or 'outer' depending on your needsDIDteam_
-#print(pmerged_df.head())
 
 
 awards_players = clear_awards(pd.read_csv('data/awards_players.csv'))
@@ -197,8 +193,8 @@ df["n_playoff"] = (
 
 
 # PLAYOFF NEXT YEAR
+df.loc[df['year'] == 11, 'playoff'] = 'N'
 df = df.drop_duplicates(subset=['tmID', 'year'])
-df.loc[df['year'] == 11, 'playoff'] = 0
 df = df.sort_values(by=['franchID', 'year'])
 df['playoffNextYear'] = df['playoff'].shift(-1)
 df.loc[df['franchID']!= df['franchID'].shift(-1),'playoffNextYear'] = None
@@ -238,14 +234,14 @@ correlation_matrix = df_subset.corr()
 
 # Step 4: Extract only the correlation with the target
 correlation_with_target = correlation_matrix[target].drop(target)  # Drop the target from itself
+correlation_with_target = correlation_with_target.sort_values(ascending=False)
 
 # Step 5: Create a heatmap
 plt.figure(figsize=(8, 6))
 sns.heatmap(correlation_with_target.to_frame(), annot=True, cmap='coolwarm', fmt='.2f', cbar=True, vmin=-1, vmax=1)
 
 # Step 6: Add labels and title
-plt.title(f'Normalized Correlation Heatmap of Features with {target}', fontsize=16)
-plt.xticks(rotation=45, ha='right')
+plt.title(f'Correlation with {target}', fontsize=16)
 
 # Step 7: Display the plot
 plt.tight_layout()
@@ -271,34 +267,7 @@ best_model = err_evaluation(models,X_train, X_test, y_train, y_test)
 
 print(X_train.shape)
 
-
-"""
-label_encoder = LabelEncoder()
-y_train = label_encoder.fit_transform(y_train)
-y_test = label_encoder.transform(y_test)
-
-
-early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
-
-model = tf.keras.models.Sequential([
-  tf.keras.layers.Flatten(input_shape=(30, )),
-  tf.keras.layers.Dense(128, activation='relu'),
-  tf.keras.layers.Dropout(0.2),
-  tf.keras.layers.Dense(10, activation='softmax')
-])
-
-model.compile(optimizer='adam',
-  loss='sparse_categorical_crossentropy',
-  metrics=['accuracy'])
-
-model.fit(X_train, y_train, epochs=100,callbacks=[early_stopping])
-model.evaluate(X_test, y_test)
-
-"""
-
 # Make predictions for the next season using the best model
-# For simplicity, let’s assume you want to predict with the last model in the list
-# best_model = models[-1][1]  # Example: MLPClassifier
 next_season = df[df.year == 10]  # Replace '6' with the next season
 X_next_season = next_season[features]
 
